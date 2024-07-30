@@ -1,0 +1,6 @@
+#  Ignore jupyter notebooks
+*.ipynb
+
+# Ignore data because of large size
+*.txt
+*.xlsx
