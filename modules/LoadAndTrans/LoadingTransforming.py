@@ -22,20 +22,23 @@ class CloudDataset(Dataset):
     
 # Test Val Train Split
 def CloudSplitter(cloudset, labels, test_size,  val_size, seed=42):
-    # Split the indices randomly
-    np.random.seed( seed )
-    idxs = np.arange( len(labels) )
-    np.random.shuffle( idxs )
+    cloudset = np.array(cloudset)
+    labels = np.array(labels)
 
-    # First train test split
-    splt = int(np.floor( len(idxs) * test_size ))
-    idxs_test = idxs[ splt: ]
-    idxs_train = idxs[ :splt ]
+    # Split the indices randomly
+    np.random.seed(seed)
+    idxs = np.arange(len(labels))
+    np.random.shuffle(idxs)
+
+    # First train-test split
+    splt_test = int(np.floor(len(idxs) * test_size))
+    idxs_test = idxs[:splt_test]
+    idxs_train = idxs[splt_test:]
 
     # Now the validation split
-    splt = int(np.floor( len(idxs_train) * val_size ))
-    idxs_val = idxs_train[ splt: ]
-    idxs_train = idxs_train[ :splt ]
+    splt_val = int(np.floor(len(idxs_train) * val_size))
+    idxs_val = idxs_train[:splt_val]
+    idxs_train = idxs_train[splt_val:]
 
     # Perform the splits
     trainset = cloudset[ idxs_train ]
