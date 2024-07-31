@@ -4,32 +4,44 @@ import os
 from torch.utils.data import Dataset, DataLoader
 import torch
 
+
+
+
+
+
+
+
 ################# DATASET FUNCTIONS #######################
 
-# Cloud Dataset
 class CloudDataset(Dataset):
     # Loads set of pointclouds and passes one with according label
     def __init__(self, filepaths):
         self.filepaths = filepaths
+        print(f"Initialized CloudDataset with {len(filepaths)} files.")
 
     def __len__(self):
         return len(self.filepaths)
     
     def __getitem__(self, idx):
-        file = np.load( self.filepaths[idx] )
-
-        cloud = torch.tensor(file[0][0], dtype=torch.float32).transpose(0,1)
-        label = torch.tensor(file[0][1], dtype=torch.float32)
-        return cloud, label
+        print(f"Fetching item index: {idx}")
+        try:
+            file = np.load(self.filepaths[idx])
+            cloud = torch.tensor(file[0][0], dtype=torch.float32).transpose(0, 1)
+            label = torch.tensor(file[0][1], dtype=torch.float32)
+            #print(f"Cloud shape: {cloud.shape}, Label shape: {label.shape}, Cloud size: {cloud.element_size() * cloud.nelement() / (1024**2):.2f} MB")
+            return cloud, label
+        except Exception as e:
+            print(f"Error loading file {self.filepaths[idx]}: {e}")
+            raise
     
 # Test Val Train Split
-def CloudSplitter(cloudset, labels, test_size,  val_size, seed=42):
-    cloudset = np.array(cloudset)
-    labels = np.array(labels)
-
+def CloudSplitter(filepaths, test_size, val_size, seed=42):
+    # Convert filepaths to a numpy array if it is not already
+    filepaths = np.array(filepaths)
+    
     # Split the indices randomly
     np.random.seed(seed)
-    idxs = np.arange(len(labels))
+    idxs = np.arange(len(filepaths))
     np.random.shuffle(idxs)
 
     # First train-test split
@@ -43,18 +55,66 @@ def CloudSplitter(cloudset, labels, test_size,  val_size, seed=42):
     idxs_train = idxs_train[splt_val:]
 
     # Perform the splits
-    trainset = cloudset[ idxs_train ]
-    labels_train = labels[ idxs_train ]
-    testset = cloudset[ idxs_test ]
-    labels_test = labels[ idxs_test ]
-    valset = cloudset[ idxs_val ]
-    labels_val = labels[ idxs_val ]
+    trainset = filepaths[idxs_train.tolist()]
+    testset = filepaths[idxs_test.tolist()]
+    valset = filepaths[idxs_val.tolist()]
 
-    return trainset, valset, testset, labels_train, labels_test, labels_val
+    return trainset, valset, testset
+
+def CloudLoader(filepaths, batch_size, test_size,  val_size):
+    # First split the data
+    trainset, valset, testset = CloudSplitter(filepaths=filepaths, test_size=test_size, val_size=val_size)
+
+    # Create Datasets and DataLoaders
+    print("Initializing trainloader...")
+    trainloader = DataLoader(CloudDataset(trainset), batch_size=batch_size, shuffle=True, num_workers=0)
+    print("Initializing valloader...")
+    valloader = DataLoader(CloudDataset(valset), batch_size=batch_size, shuffle=True, num_workers=0)
+    print("Initializing testloader...\n")
+    testloader = DataLoader(CloudDataset(testset), batch_size=batch_size, shuffle=True, num_workers=0)
+    print("Finished initialization of the dataloaders! Some infos:\n")
+
+    # Verify DataLoader functionality
+    print(f"Number of batches in trainloader: {len(trainloader)}")
+    print(f"Number of batches in valloader: {len(valloader)}")
+    print(f"Number of batches in testloader: {len(testloader)}")
+
+    # Get insight over sizes
+    for batch_idx, (clouds, labels) in enumerate(trainloader):
+        # # Print the shapes of the batch
+        # print(f"First batch cloud shape: {clouds.shape}")
+        # print(f"First batch label shape: {labels.shape}")
+
+        # Print the size of one cloud
+        # Assuming clouds is a batch of shape [batch_size, channels, num_points]
+        # Example: clouds.shape = [2, 3, 213996]
+        one_cloud = clouds[0]  # Get the first cloud in the batch
+        # print(f"One cloud shape: {one_cloud.shape}")
+        print(f"One cloud size: {one_cloud.element_size() * one_cloud.nelement() / (1024**2):.2f} MB")
+
+        # Print the size of the first batch
+        print(f"First batch size: {clouds.element_size() * clouds.nelement() / (1024**2):.2f} MB\n")
+
+        if batch_idx == 0:  # Only need the first batch
+            break
+
+
+    return trainloader, valloader, testloader
+
+
+
+
+
+
+
+
+
+
 
 ################# PADDING FUNCTIONS #################
 
-def RandomChoicePadding( data_dir, label_dir, output_dir, target_number ):
+def RandomChoicePadding( data_dir, label_dir, output_dir, target_number, array_format ):
+    np.random.seed(42)
     # Create output directory if not created allready
     if not os.path.exists(output_dir):
         os.makedirs(output_dir, exist_ok=False)
@@ -113,7 +173,7 @@ def RandomChoicePadding( data_dir, label_dir, output_dir, target_number ):
             new_tree = tree
 
         #  save as cloud and label as .npy file
-        new_npy = np.array( [(new_tree, fractal_dims[i])], dtype=cloudLabelType_avg )
+        new_npy = np.array( [(new_tree, fractal_dims[i])], dtype=array_format )
         np.save( output_path, new_npy )
 
     print("Random Padding Completed")
