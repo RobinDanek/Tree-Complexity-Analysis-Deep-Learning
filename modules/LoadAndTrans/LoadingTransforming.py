@@ -28,12 +28,12 @@ def CloudSplitter(cloudset, labels, test_size,  val_size, seed=42):
     np.random.shuffle( idxs )
 
     # First train test split
-    splt = np.floor( len(idxs) * test_size )
+    splt = int(np.floor( len(idxs) * test_size ))
     idxs_test = idxs[ splt: ]
     idxs_train = idxs[ :splt ]
 
     # Now the validation split
-    splt = np.floor( len(idxs_train) * val_size )
+    splt = int(np.floor( len(idxs_train) * val_size ))
     idxs_val = idxs_train[ splt: ]
     idxs_train = idxs_train[ :splt ]
 
@@ -57,9 +57,14 @@ def RandomChoicePadding( data_dir, output_dir, target_number ):
     # Now load the trees, augment them and store them
     tree_list = [f for f in os.listdir( data_dir ) if f.endswith('.txt')]
     for t in tree_list:
-        output_path = os.path.join( output_dir, t )
+        output_path = os.path.join( output_dir, t.replace('.txt', '.npy') )
         tree_path = os.path.join(data_dir, t)
         tree = np.loadtxt(tree_path)
+
+        # Ensure that all trees have 3 dimensions
+        if tree.shape[1] != 3:
+            print(f"Point cloud data in {t} does not have 3 coordinates per point, instead it has {tree.shape[1]} coordinates. Omitting unnecessary coordinates...")
+            tree = tree[:,:3]
 
         tree_shape = tree.shape[0]
 
@@ -71,31 +76,35 @@ def RandomChoicePadding( data_dir, output_dir, target_number ):
             # Check how many times the tree has to be recreated to match the target number
             # and append the tree so many times
             full_replications = target_number // tree_shape 
-            for i in range( full_replications - 1 ): # -1 somce the tree has been appended once already
-                new_tree = np.concatenate(( new_tree, tree ))
+            for _ in range( full_replications - 1 ): # -1 somce the tree has been appended once already
+                new_tree = np.vstack([ new_tree, tree ])
 
             # New draw the remaining points randomly without replacement
             number_remaining_points = target_number - new_tree.shape[0]
             drawn_point_indices = np.random.choice( tree.shape[0], size=number_remaining_points, replace=False )
             drawn_points = tree[ drawn_point_indices ]
 
-            new_tree = np.concatenate(( new_tree, drawn_points ))
+            new_tree = np.vstack([ new_tree, drawn_points ])
             # Now save the filled tree
             if new_tree.shape[0] != target_number:
-                print("Wrong")
-            np.savetxt( output_path, new_tree )
+                print("Tree is too small")
         
         # Check for too large trees
-        if tree_shape > target_number:
+        elif tree_shape > target_number:
             # draw samples from tree without replacement
             new_tree_indices = np.random.choice( tree.shape[0], size=target_number, replace=False )
             new_tree = tree[ new_tree_indices ]
 
             if new_tree.shape[0] != target_number:
-                print("Wrong")
-            np.savetxt( output_path, new_tree )
+                print("Tree is too large")
 
         # If the tree has the exact size just save it
-        np.savetxt( output_path, tree )
+        else:
+            new_tree = tree
+
+        #  save as .npy file
+        np.save( output_path, new_tree )
+
+    print("Random Padding Completed")
 
     return 

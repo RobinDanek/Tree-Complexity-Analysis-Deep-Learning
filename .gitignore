@@ -4,3 +4,4 @@
 # Ignore data because of large size
 *.txt
 *.xlsx
+*.npy
