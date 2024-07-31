@@ -2,22 +2,24 @@ import numpy as np
 import pandas as pd
 import os
 from torch.utils.data import Dataset, DataLoader
+import torch
 
 ################# DATASET FUNCTIONS #######################
 
 # Cloud Dataset
 class CloudDataset(Dataset):
     # Loads set of pointclouds and passes one with according label
-    def __init__(self, cloudset, labels):
-        self.clouds = cloudset
-        self.labels = labels
+    def __init__(self, filepaths):
+        self.filepaths = filepaths
 
     def __len__(self):
-        return len(self.labels)
+        return len(self.filepaths)
     
     def __getitem__(self, idx):
-        cloud = self.clouds[idx]
-        label = self.labels[idx]
+        file = np.load( self.filepaths[idx] )
+
+        cloud = torch.tensor(file[0][0], dtype=torch.float32).transpose(0,1)
+        label = torch.tensor(file[0][1], dtype=torch.float32)
         return cloud, label
     
 # Test Val Train Split
@@ -52,14 +54,19 @@ def CloudSplitter(cloudset, labels, test_size,  val_size, seed=42):
 
 ################# PADDING FUNCTIONS #################
 
-def RandomChoicePadding( data_dir, output_dir, target_number ):
+def RandomChoicePadding( data_dir, label_dir, output_dir, target_number ):
     # Create output directory if not created allready
     if not os.path.exists(output_dir):
         os.makedirs(output_dir, exist_ok=False)
-    
-    # Now load the trees, augment them and store them
-    tree_list = [f for f in os.listdir( data_dir ) if f.endswith('.txt')]
-    for t in tree_list:
+
+    # Load the labels and the according trees
+    label_df = pd.read_csv( label_dir )
+    fractal_dims = label_df['fractal_dim'].to_numpy()
+
+    # Load the trees in label order 
+    tree_list = [f'{tree}.txt' for tree in label_df['tree_id']]
+
+    for i, t in enumerate(tree_list):
         output_path = os.path.join( output_dir, t.replace('.txt', '.npy') )
         tree_path = os.path.join(data_dir, t)
         tree = np.loadtxt(tree_path)
@@ -105,8 +112,9 @@ def RandomChoicePadding( data_dir, output_dir, target_number ):
         else:
             new_tree = tree
 
-        #  save as .npy file
-        np.save( output_path, new_tree )
+        #  save as cloud and label as .npy file
+        new_npy = np.array( [(new_tree, fractal_dims[i])], dtype=cloudLabelType_avg )
+        np.save( output_path, new_npy )
 
     print("Random Padding Completed")
 
