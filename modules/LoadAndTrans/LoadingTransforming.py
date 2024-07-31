@@ -1,5 +1,7 @@
 import numpy as np
 import pandas as pd
+import os
+from torch.utils.data import Dataset, DataLoader
 
 ################# DATASET FUNCTIONS #######################
 
@@ -44,3 +46,56 @@ def CloudSplitter(cloudset, labels, test_size,  val_size, seed=42):
     labels_val = labels[ idxs_val ]
 
     return trainset, valset, testset, labels_train, labels_test, labels_val
+
+################# PADDING FUNCTIONS #################
+
+def RandomChoicePadding( data_dir, output_dir, target_number ):
+    # Create output directory if not created allready
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir, exist_ok=False)
+    
+    # Now load the trees, augment them and store them
+    tree_list = [f for f in os.listdir( data_dir ) if f.endswith('.txt')]
+    for t in tree_list:
+        output_path = os.path.join( output_dir, t )
+        tree_path = os.path.join(data_dir, t)
+        tree = np.loadtxt(tree_path)
+
+        tree_shape = tree.shape[0]
+
+        # Check for too small tree
+        if tree_shape < target_number:
+            # Initialize new tree
+            new_tree = tree
+
+            # Check how many times the tree has to be recreated to match the target number
+            # and append the tree so many times
+            full_replications = target_number // tree_shape 
+            for i in range( full_replications - 1 ): # -1 somce the tree has been appended once already
+                new_tree = np.concatenate(( new_tree, tree ))
+
+            # New draw the remaining points randomly without replacement
+            number_remaining_points = target_number - new_tree.shape[0]
+            drawn_point_indices = np.random.choice( tree.shape[0], size=number_remaining_points, replace=False )
+            drawn_points = tree[ drawn_point_indices ]
+
+            new_tree = np.concatenate(( new_tree, drawn_points ))
+            # Now save the filled tree
+            if new_tree.shape[0] != target_number:
+                print("Wrong")
+            np.savetxt( output_path, new_tree )
+        
+        # Check for too large trees
+        if tree_shape > target_number:
+            # draw samples from tree without replacement
+            new_tree_indices = np.random.choice( tree.shape[0], size=target_number, replace=False )
+            new_tree = tree[ new_tree_indices ]
+
+            if new_tree.shape[0] != target_number:
+                print("Wrong")
+            np.savetxt( output_path, new_tree )
+
+        # If the tree has the exact size just save it
+        np.savetxt( output_path, tree )
+
+    return 
