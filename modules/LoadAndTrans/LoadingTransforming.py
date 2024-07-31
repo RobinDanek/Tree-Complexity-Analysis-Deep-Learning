@@ -23,7 +23,7 @@ class CloudDataset(Dataset):
         return len(self.filepaths)
     
     def __getitem__(self, idx):
-        print(f"Fetching item index: {idx}")
+        #print(f"Fetching item index: {idx}")
         try:
             file = np.load(self.filepaths[idx])
             cloud = torch.tensor(file[0][0], dtype=torch.float32).transpose(0, 1)
