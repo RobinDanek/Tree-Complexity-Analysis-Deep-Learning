@@ -24,23 +24,25 @@ from modules.Utils.utils import get_device
 
 verbose = True
 
-input_dir = os.path.join(current_dir, 'data', 'random_padding10k')
+input_dir = os.path.join(current_dir, 'data', 'random_padding10k_aug')
 
-epochs = 100
-lr = 10**-4
+epochs = 200
+lr = 10**-5
 GPU = True
-
-model_name = 'pointnet_10k_2'
-
-plot_results = True
-plot_dir = os.path.join(current_dir, 'plots', 'LossCurves', model_name+'png')
 
 early_stopper = True
 early_stopper_patience = 15
 
 scheduler = True
-scheduler_decay = 0.5
+scheduler_decay = 0.1
 scheduler_patience = 5
+
+batch_size = 24
+
+model_name = f'pointnet_10k_rot_flip_lr5_decay01'
+
+plot_results = True
+plot_dir = os.path.join(current_dir, 'plots', 'LossCurves', model_name+'png')
 
 
 
@@ -51,13 +53,13 @@ scheduler_patience = 5
 
 ########## TRAINING DEFINITION & RUNNING ############
 
-def trainPointNet(data_dir, epochs, lr, gpu, model_name, early_stopper, early_stopper_patience, scheduler, scheduler_decay, scheduler_patience, verbose, plot_results, plot_dir):
+def trainPointNet(data_dir, epochs, batch_size, lr, gpu, model_name, early_stopper, early_stopper_patience, scheduler, scheduler_decay, scheduler_patience, verbose, plot_results, plot_dir):
 
     # Start with loading the data. Get list of all the trees
     cloud_list = [os.path.join( data_dir, f ) for f in os.listdir( data_dir ) if f.endswith('.npy') ]
 
     # Now get the dataloaders
-    trainloader, valloader, testloader = CloudLoader(filepaths=cloud_list, batch_size=5, test_size=0.1, val_size=0.1)
+    trainloader, valloader, testloader = CloudLoader(filepaths=cloud_list, batch_size=batch_size, test_size=0.1, val_size=0.1)
 
     # Setup device and model
     device = get_device(cuda_preference=gpu)
@@ -71,7 +73,7 @@ def trainPointNet(data_dir, epochs, lr, gpu, model_name, early_stopper, early_st
     num_epochs = epochs
 
     criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=lr)
+    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=10**-3)
     sched = None
     if scheduler:
         sched = optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer, factor=scheduler_decay, patience=scheduler_patience)
@@ -85,6 +87,6 @@ def trainPointNet(data_dir, epochs, lr, gpu, model_name, early_stopper, early_st
     return
 
 # Now run the training
-trainPointNet(data_dir=input_dir, epochs=epochs, lr=lr, gpu=GPU, model_name=model_name, early_stopper=early_stopper,
+trainPointNet(data_dir=input_dir, epochs=epochs, lr=lr, batch_size=batch_size, gpu=GPU, model_name=model_name, early_stopper=early_stopper,
               early_stopper_patience=early_stopper_patience, scheduler=scheduler, scheduler_decay=scheduler_decay, 
               scheduler_patience=scheduler_patience, verbose=verbose, plot_results=plot_results, plot_dir=plot_dir)

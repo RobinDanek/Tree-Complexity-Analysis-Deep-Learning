@@ -70,9 +70,9 @@ def CloudLoader(filepaths, batch_size, test_size,  val_size):
     trainloader = DataLoader(CloudDataset(trainset), batch_size=batch_size, shuffle=True, num_workers=0)
     print("Initializing valloader...")
     valloader = DataLoader(CloudDataset(valset), batch_size=batch_size, shuffle=True, num_workers=0)
-    print("Initializing testloader...\n")
+    print("Initializing testloader...")
     testloader = DataLoader(CloudDataset(testset), batch_size=batch_size, shuffle=True, num_workers=0)
-    print("Finished initialization of the dataloaders! Some infos:\n")
+    print("\nFinished initialization of the dataloaders! Some infos:\n")
 
     # Verify DataLoader functionality
     print(f"Number of batches in trainloader: {len(trainloader)}")
