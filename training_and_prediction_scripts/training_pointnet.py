@@ -72,10 +72,10 @@ def trainPointNet(data_dir, epochs, lr, gpu, model_name, early_stopper, early_st
 
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=lr)
+    sched = None
     if scheduler:
         sched = optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer, factor=scheduler_decay, patience=scheduler_patience)
-    else:
-        sched = None
+
 
     # Run the training
     train_losses, val_losses = run_training(model=model, num_epochs=num_epochs, optimizer=optimizer, train_dataloader=trainloader, val_dataloader=valloader,
