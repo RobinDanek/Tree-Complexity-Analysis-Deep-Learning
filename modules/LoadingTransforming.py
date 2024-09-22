@@ -3,6 +3,7 @@ import pandas as pd
 import os
 from torch.utils.data import Dataset, DataLoader
 import torch
+import shutil
 
 
 
@@ -34,14 +35,53 @@ class CloudDataset(Dataset):
             print(f"Error loading file {self.filepaths[idx]}: {e}")
             raise
     
-# Test Val Train Split
-def CloudSplitter(filepaths, test_size, val_size, seed=42):
+# Test Val Train Split. If an output directory is given, files are moved into subfolders:
+# Three folders containing the sets for reuse and one folder containing all samples
+def CloudSplitter(filepaths, test_size, val_size, output_dir=None, seed=42):
+    # Helper function to delete all files in a directory
+    def clear_directory(directory):
+        if os.path.exists(directory):
+            for filename in os.listdir(directory):
+                file_path = os.path.join(directory, filename)
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+                elif os.path.isdir(file_path):
+                    shutil.rmtree(file_path)  # Just in case there are subdirectories
+
     # Convert filepaths to a numpy array if it is not already
     filepaths = np.array(filepaths)
     
+    if output_dir:
+        # Create an 'all_samples' directory and move all files to this directory
+        all_samples_dir = os.path.join(output_dir, 'all_samples')
+        # Create train, validation, and test directories
+        train_dir = os.path.join(output_dir, 'trainset')
+        val_dir = os.path.join(output_dir, 'valset')
+        test_dir = os.path.join(output_dir, 'testset')
+
+        os.makedirs(all_samples_dir, exist_ok=True)
+        os.makedirs(train_dir, exist_ok=True)
+        os.makedirs(val_dir, exist_ok=True)
+        os.makedirs(test_dir, exist_ok=True)
+
+        # Clear all set-directories before execution
+        clear_directory(train_dir)
+        clear_directory(val_dir)
+        clear_directory(test_dir)
+
+        # Move all files to 'all_samples' directory
+        for filepath in filepaths:
+            dest_path = os.path.join(all_samples_dir, os.path.basename(filepath))
+            if os.path.exists(dest_path):
+                continue  # Skip this file if it already exists
+            shutil.move(filepath, dest_path)
+
+        # Update filepaths to point to the new 'all_samples' directory
+        filepaths = np.array([os.path.join(all_samples_dir, os.path.basename(fp)) for fp in filepaths])
+
     # Split the indices randomly
     np.random.seed(seed)
-    idxs = np.arange(len(filepaths))
+    idxs = np.random.permutation(len(filepaths))
     np.random.shuffle(idxs)
 
     # First train-test split
@@ -58,29 +98,73 @@ def CloudSplitter(filepaths, test_size, val_size, seed=42):
     trainset = filepaths[idxs_train.tolist()]
     testset = filepaths[idxs_test.tolist()]
     valset = filepaths[idxs_val.tolist()]
+    
+    if output_dir:
+        # Move files to their respective directories
+        for filepath in trainset:
+            shutil.copy(filepath, train_dir)
+
+        for filepath in valset:
+            shutil.copy(filepath, val_dir)
+
+        for filepath in testset:
+            shutil.copy(filepath, test_dir)
+
+        print(f"Files have been moved and split into 'trainset', 'valset', 'testset', and 'all_samples' in {output_dir}")
 
     return trainset, valset, testset
 
-def CloudLoader(filepaths, batch_size, test_size,  val_size):
-    # First split the data
-    trainset, valset, testset = CloudSplitter(filepaths=filepaths, test_size=test_size, val_size=val_size)
+# def CloudLoader(filepaths, batch_size, test_size,  val_size):
+#     # First split the data
+#     trainset, valset, testset = CloudSplitter(filepaths=filepaths, test_size=test_size, val_size=val_size)
+
+#     # Create Datasets and DataLoaders
+#     print("Initializing trainloader...")
+#     trainloader = DataLoader(CloudDataset(trainset), batch_size=batch_size, shuffle=True, num_workers=0)
+#     print("Initializing valloader...")
+#     valloader = DataLoader(CloudDataset(valset), batch_size=batch_size, shuffle=True, num_workers=0)
+#     print("Initializing testloader...")
+#     testloader = DataLoader(CloudDataset(testset), batch_size=batch_size, shuffle=True, num_workers=0)
+#     print("\nFinished initialization of the dataloaders! Some infos:\n")
+
+#     # Verify DataLoader functionality
+#     print(f"Number of batches in trainloader: {len(trainloader)}")
+#     print(f"Number of batches in valloader: {len(valloader)}")
+#     print(f"Number of batches in testloader: {len(testloader)}")
+
+#     # Get insight over sizes
+#     for batch_idx, (clouds, labels) in enumerate(trainloader):
+#         # # Print the shapes of the batch
+#         # print(f"First batch cloud shape: {clouds.shape}")
+#         # print(f"First batch label shape: {labels.shape}")
+
+#         # Print the size of one cloud
+#         # Assuming clouds is a batch of shape [batch_size, channels, num_points]
+#         # Example: clouds.shape = [2, 3, 213996]
+#         one_cloud = clouds[0]  # Get the first cloud in the batch
+#         # print(f"One cloud shape: {one_cloud.shape}")
+#         print(f"One cloud size: {one_cloud.element_size() * one_cloud.nelement() / (1024**2):.2f} MB")
+
+#         # Print the size of the first batch
+#         print(f"First batch size: {clouds.element_size() * clouds.nelement() / (1024**2):.2f} MB\n")
+
+#         if batch_idx == 0:  # Only need the first batch
+#             break
+
+
+#     return trainloader, valloader, testloader
+
+def CloudLoader(filepaths, batch_size):
 
     # Create Datasets and DataLoaders
-    print("Initializing trainloader...")
-    trainloader = DataLoader(CloudDataset(trainset), batch_size=batch_size, shuffle=True, num_workers=0)
-    print("Initializing valloader...")
-    valloader = DataLoader(CloudDataset(valset), batch_size=batch_size, shuffle=True, num_workers=0)
-    print("Initializing testloader...")
-    testloader = DataLoader(CloudDataset(testset), batch_size=batch_size, shuffle=True, num_workers=0)
+    loader = DataLoader(CloudDataset(filepaths), batch_size=batch_size, shuffle=True, num_workers=0)
     print("\nFinished initialization of the dataloaders! Some infos:\n")
 
     # Verify DataLoader functionality
-    print(f"Number of batches in trainloader: {len(trainloader)}")
-    print(f"Number of batches in valloader: {len(valloader)}")
-    print(f"Number of batches in testloader: {len(testloader)}")
+    print(f"Number of batches in CloudLoader: {len(loader)}")
 
     # Get insight over sizes
-    for batch_idx, (clouds, labels) in enumerate(trainloader):
+    for batch_idx, (clouds, labels) in enumerate(loader):
         # # Print the shapes of the batch
         # print(f"First batch cloud shape: {clouds.shape}")
         # print(f"First batch label shape: {labels.shape}")
@@ -99,7 +183,7 @@ def CloudLoader(filepaths, batch_size, test_size,  val_size):
             break
 
 
-    return trainloader, valloader, testloader
+    return loader
 
 
 
