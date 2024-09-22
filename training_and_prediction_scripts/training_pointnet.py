@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim 
+from torchmetrics.regression import RelativeSquaredError
 
 import os
 import sys
@@ -15,6 +16,7 @@ model_dir = os.path.join(current_dir, 'model_saves', 'pointnet')
 from modules.LoadingTransforming import CloudLoader
 from modules.PointNet import PointNet, run_training
 from modules.utils import get_device
+from modules.CustomLoss import WeightedMSELoss
 
 
 
@@ -24,10 +26,11 @@ from modules.utils import get_device
 
 verbose = True
 
-train_dir = os.path.join(current_dir, 'data', 'random_padding10k', 'trainset')
+# train_dir = os.path.join(current_dir, 'data', 'random_padding10k', 'trainset_augmented')
+train_dir = os.path.join(current_dir, 'data', 'random_padding10k', 'trainset_augmented')
 val_dir = os.path.join(current_dir, 'data', 'random_padding10k', 'valset')
 
-epochs = 200
+epochs = 300
 lr = 10**-3
 GPU = True
 
@@ -40,12 +43,15 @@ scheduler_patience = 5
 
 batch_size = 100
 
-model_name = f'pointnet_10k_lr3_cosWR15_mult1_min6_newsplit'
+model_name = f'pointnet_10k_lr3_MAE_cosWR15_mult1_min6_aug'
 
 plot_results = True
 plot_dir = os.path.join(current_dir, 'plots', 'LossCurves', model_name+'png')
 
-
+# criterion = nn.MSELoss()
+# criterion = RelativeSquaredError() # https://lightning.ai/docs/torchmetrics/stable/regression/rse.html
+# criterion = WeightedMSELoss( 0.2, 10 )
+criterion = nn.L1Loss()
 
 
 
@@ -54,7 +60,7 @@ plot_dir = os.path.join(current_dir, 'plots', 'LossCurves', model_name+'png')
 
 ########## TRAINING DEFINITION & RUNNING ############
 
-def trainPointNet(train_dir, val_dir, epochs, batch_size, lr, gpu, model_name, early_stopper, early_stopper_patience, scheduler, scheduler_decay, scheduler_patience, verbose, plot_results, plot_dir):
+def trainPointNet(train_dir, val_dir, epochs, batch_size, lr, gpu, model_name, early_stopper, early_stopper_patience, scheduler, scheduler_decay, scheduler_patience, verbose, plot_results, plot_dir, criterion):
 
     # Start with loading the data. Get list of all the trees
     train_list = [os.path.join( train_dir, f ) for f in os.listdir( train_dir ) if f.endswith('.npy') ]
@@ -75,7 +81,7 @@ def trainPointNet(train_dir, val_dir, epochs, batch_size, lr, gpu, model_name, e
     # Setup the optimizer and scheduler
     num_epochs = epochs
 
-    criterion = nn.MSELoss()
+    criterion = criterion
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=10**-3)
     sched = None
     if scheduler:
@@ -93,5 +99,5 @@ def trainPointNet(train_dir, val_dir, epochs, batch_size, lr, gpu, model_name, e
 
 # Now run the training
 trainPointNet(train_dir=train_dir, val_dir=val_dir, epochs=epochs, lr=lr, batch_size=batch_size, gpu=GPU, model_name=model_name, early_stopper=early_stopper,
-              early_stopper_patience=early_stopper_patience, scheduler=scheduler, scheduler_decay=scheduler_decay, 
+              early_stopper_patience=early_stopper_patience, scheduler=scheduler, scheduler_decay=scheduler_decay, criterion=criterion,
               scheduler_patience=scheduler_patience, verbose=verbose, plot_results=plot_results, plot_dir=plot_dir)

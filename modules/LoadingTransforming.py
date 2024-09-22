@@ -34,20 +34,24 @@ class CloudDataset(Dataset):
         except Exception as e:
             print(f"Error loading file {self.filepaths[idx]}: {e}")
             raise
+
+
+
+
     
+# Helper function to delete all files in a directory
+def clear_directory(directory):
+    if os.path.exists(directory):
+        for filename in os.listdir(directory):
+            file_path = os.path.join(directory, filename)
+            if os.path.isfile(file_path):
+                os.remove(file_path)
+            elif os.path.isdir(file_path):
+                shutil.rmtree(file_path)  # Just in case there are subdirectories
+
 # Test Val Train Split. If an output directory is given, files are moved into subfolders:
 # Three folders containing the sets for reuse and one folder containing all samples
 def CloudSplitter(filepaths, test_size, val_size, output_dir=None, seed=42):
-    # Helper function to delete all files in a directory
-    def clear_directory(directory):
-        if os.path.exists(directory):
-            for filename in os.listdir(directory):
-                file_path = os.path.join(directory, filename)
-                if os.path.isfile(file_path):
-                    os.remove(file_path)
-                elif os.path.isdir(file_path):
-                    shutil.rmtree(file_path)  # Just in case there are subdirectories
-
     # Convert filepaths to a numpy array if it is not already
     filepaths = np.array(filepaths)
     
@@ -282,7 +286,9 @@ def flipTree(tree):
     tree[:, 0] = -tree[:, 0]  # Flip the x-coordinate
     return tree
 
-
+"""
+THIS FUNCTION IS DEPRICATED. PAD DATA, SPLIT INTO SETS AND THEN AUGMENT INSTEAD!
+"""
 def RandomChoiceAugmPadding( data_dir, label_dir, output_dir, target_number, array_format, num_draws, num_rots, horizontal_flip ):
     np.random.seed(42)
     # Create output directory if not created allready
@@ -388,3 +394,59 @@ def RandomChoiceAugmPadding( data_dir, label_dir, output_dir, target_number, arr
     print("Random Augmented Padding Completed")
 
     return 
+
+# This function goes over all the .npy files in the input directory, augemnts the pointclouds and then
+# saves them to the output directory
+def DataAugmentation(input_dir, output_dir, array_format, num_rots=0, horizontal_flip=False, flip_rots=False ):
+    # Helper function for saving trees
+    def saveTree(filepath, tree, label, output_dir, array_format, changeName):
+        output_path = os.path.join( output_dir, os.path.basename(filepath).replace('.npy', f'{changeName}.npy') )
+        new_npy = np.array( [(tree, label)], dtype=array_format )
+        np.save( output_path, new_npy )
+        return
+
+    # Seed for reproducibility
+    np.random.seed(42)
+
+    # Create output directory
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Clear the output directory to avoid leaks
+    clear_directory( output_dir )
+
+    # Get list of paths to the input files inputs
+    input_list = [os.path.join(input_dir, f) for f in os.listdir( input_dir ) if f.endswith('.npy') ]
+
+    # Now iterate over the files
+    for filepath in input_list:
+        # Load the file and extract the pointcloud as well as the according label
+        tree_file = np.load(filepath)
+        tree = tree_file[0][0]
+        label = tree_file[0][1]
+
+        # Now copy the original tree before augmentation to the output directory
+        saveTree(filepath=filepath, tree=tree, label=label, output_dir=output_dir, array_format=array_format, changeName='')
+
+        # Flip the tree
+        if horizontal_flip == True:
+            flip_tree = flipTree( tree )
+            # Save the horizontal flip of the drawn tree
+            saveTree(filepath=filepath, tree=flip_tree, label=label, output_dir=output_dir, array_format=array_format, changeName='_flip')
+
+        # Now rotate the trees num_rots times
+        for rot in range(num_rots):
+            # Choose random turning angle
+            angle = np.random.uniform( 0, 2*np.pi )
+            rot_tree = rotateTree( tree, angle=angle )
+
+            # Save the rotated tree
+            saveTree(filepath=filepath, tree=rot_tree, label=label, output_dir=output_dir, array_format=array_format, changeName=f'_{rot}')
+
+            # If the rotated trees should also be flipped, do so
+            if flip_rots:
+                rot_flip_tree = flipTree( rot_tree )
+
+                # Save the rotated and flipped tree
+                saveTree(filepath=filepath, tree=rot_flip_tree, label=label, output_dir=output_dir, array_format=array_format, changeName=f'_{rot}_flip')
+
+    return

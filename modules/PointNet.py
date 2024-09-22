@@ -147,6 +147,8 @@ def train(dataloader, optimizer, model, master_bar, device, loss_fn = nn.MSELoss
     """
     scaler = GradScaler() # Initialize the gradient scaler for mixed precision training
     losses = []  # Use a list to store individual batch losses
+    mean_absolute_errors = []
+    MAErr = nn.L1Loss()
 
     for batch_idx, (x, y) in enumerate(fastprogress.progress_bar(dataloader, parent=master_bar)):
         # if batch_idx == 10:
@@ -188,6 +190,7 @@ def train(dataloader, optimizer, model, master_bar, device, loss_fn = nn.MSELoss
             #     print(f"Memory allocated after prediction: {torch.cuda.memory_allocated() / (1024 ** 3):.2f} GB")
 
             batch_loss = loss_fn(y_pred, y.to(device, non_blocking=True))
+            MAE_loss = MAErr(y_pred, y.to(device, non_blocking=True))
 
         scaler.scale(batch_loss).backward()  # Scale the loss and perform the backward pass
         scaler.step(optimizer)
@@ -195,6 +198,7 @@ def train(dataloader, optimizer, model, master_bar, device, loss_fn = nn.MSELoss
 
         # Save the batch loss for logging purposes
         losses.append(batch_loss.item())
+        mean_absolute_errors.append(MAE_loss.item())
 
         # Clean up GPU memory
         # del x, y, y_pred, batch_loss
@@ -205,9 +209,10 @@ def train(dataloader, optimizer, model, master_bar, device, loss_fn = nn.MSELoss
 
     # Calculate the mean loss for the epoch
     mean_loss = np.mean(losses)
+    mean_MAE = np.mean(mean_absolute_errors)
 
     # Return the mean loss for the epoch
-    return mean_loss
+    return mean_loss, mean_MAE
 
 
 
@@ -227,6 +232,8 @@ def validate(dataloader, model, master_bar, device, loss_fn=nn.MSELoss()):
         Mean loss and total prediction error on validation set
     """
     epoch_loss = []
+    epoch_MAE = []
+    MAErr = nn.L1Loss()
 
     model.eval()
     with torch.no_grad():
@@ -237,12 +244,14 @@ def validate(dataloader, model, master_bar, device, loss_fn=nn.MSELoss()):
 
             # Compute loss
             loss = loss_fn(y_pred, y.to(device, non_blocking=True))
+            MAE_loss = MAErr(y_pred, y.to(device, non_blocking=True))
 
             # For plotting the train loss, save it for each sample
             epoch_loss.append(loss.item())
+            epoch_MAE.append(MAE_loss.item())
 
     # Return the mean loss, the accuracy and the confusion matrix
-    return np.mean(epoch_loss)
+    return np.mean(epoch_loss), np.mean(epoch_MAE)
 
 
 def test(dataloader, model, device, loss_fn=nn.MSELoss()):
@@ -409,25 +418,25 @@ def run_training(model, optimizer, num_epochs, train_dataloader, val_dataloader,
         ES = EarlyStopper(verbose=verbose, patience = patience, path=early_stopper_path)
 
     # initialize old loss value varibale (choose something very large)
-    val_loss_old = 1e6
+    val_MAE_loss_old = 1e6
 
     for epoch in master_bar:
         # Train the model
-        epoch_train_loss = train(dataloader=train_dataloader, optimizer=optimizer, model=model, 
+        epoch_train_loss, epoch_train_MAE_loss = train(dataloader=train_dataloader, optimizer=optimizer, model=model, 
                                                  master_bar=master_bar, device=device, loss_fn=loss_fn)
         # Validate the model
-        epoch_val_loss = validate(val_dataloader, model, master_bar, device, loss_fn)
+        epoch_val_loss, epoch_val_MAE_loss = validate(val_dataloader, model, master_bar, device, loss_fn)
 
         # Save loss and acc for plotting
         train_losses.append(epoch_train_loss)
         val_losses.append(epoch_val_loss)
         
         if verbose:
-            master_bar.write(f'Train loss: {epoch_train_loss:.3f}, val loss: {epoch_val_loss:.3f}')
+            master_bar.write(f'Train loss: {epoch_train_loss:.3f}, train MAE: {epoch_train_MAE_loss:.3f}, val loss: {epoch_val_loss:.3f}, val MAE: {epoch_val_MAE_loss:.3f}')
 
 
         if early_stopper and epoch != 0:
-            ES.check_criterion(epoch_val_loss, val_loss_old)
+            ES.check_criterion(epoch_val_MAE_loss, val_MAE_loss_old)
             if ES.early_stop:
                 master_bar.write("Early stopping")
                 model = ES.load_checkpoint(model)
@@ -436,12 +445,13 @@ def run_training(model, optimizer, num_epochs, train_dataloader, val_dataloader,
                 master_bar.write(f"Early stop counter: {ES.counter} / {patience}")
 
         # Save smallest loss
-        if early_stopper and epoch_val_loss < val_loss_old:
-            val_loss_old = epoch_val_loss
+        if early_stopper and epoch_val_MAE_loss < val_MAE_loss_old:
+            val_MAE_loss_old = epoch_val_MAE_loss
             ES.save_model(model)
             
         if scheduler:
             # scheduler.step(epoch_val_loss)
+            # scheduler.step(epoch_val_MAE_loss)
             scheduler.step()
 
     time_elapsed = np.round(time.time() - start_time, 0).astype(int)
