@@ -59,34 +59,42 @@ class TNet(nn.Module):
 
 # Now define the PointNet
 class PointNet(nn.Module):
-    def __init__(self):
+    def __init__(self, T1=3, T2=64):
         super(PointNet, self).__init__()
-        self.input_transform = TNet(k=3)
-        self.feature_transform = TNet(k=64)
+        self.input_transform = TNet(k=T1)
+        self.feature_transform = TNet(k=T2)
         
         # Define MLP for appliance after input transform
         self.conv1 = nn.Conv1d(3, 64, 1)
-        self.conv2 = nn.Conv1d(64, 64, 1)
+        self.conv2 = nn.Conv1d(64, T2, 1)
         # Define MLP for appliance after feature transform
-        self.conv3 = nn.Conv1d(64, 64, 1)
+        self.conv3 = nn.Conv1d(T2, 64, 1)
         self.conv4 = nn.Conv1d(64, 128, 1)
         self.conv5 = nn.Conv1d(128, 1024, 1)
 
         # Define the needed batchnormalizations
         self.bn1 = nn.BatchNorm1d(64)
-        self.bn2 = nn.BatchNorm1d(64)
+        self.bn2 = nn.BatchNorm1d(T2)
         self.bn3 = nn.BatchNorm1d(64)
         self.bn4 = nn.BatchNorm1d(128)
         self.bn5 = nn.BatchNorm1d(1024)
 
         # Define the classification MLP
         self.fc1 = nn.Linear(1024, 512)
+        # self.fc1 = nn.Linear(1024, 256)
         self.fc2 = nn.Linear(512, 256)
         self.fc3 = nn.Linear(256, 1) 
 
+        # self.fc4 = nn.Linear(256,256)
+        # self.fc5 = nn.Linear(256,256)
+
         # Define the batchnormalizations for the regression MLP
         self.bn6 = nn.BatchNorm1d(512)
+        # self.bn6 = nn.BatchNorm1d(256)
         self.bn7 = nn.BatchNorm1d(256)
+
+        # self.bn8 = nn.BatchNorm1d(256)
+        # self.bn9 = nn.BatchNorm1d(256)
 
         # Define the dropout applied to the regression layer
         self.dropout = nn.Dropout(p=0.3)
@@ -120,6 +128,8 @@ class PointNet(nn.Module):
         # Apply regression MLP
         x = self.relu(self.bn6(self.fc1(x)))
         x = self.relu(self.bn7(self.fc2(x)))
+        # x = self.relu(self.bn8(self.fc4(x)))
+        # x = self.relu(self.bn9(self.fc5(x)))
         x = self.dropout(x)
         x = self.fc3(x)
 

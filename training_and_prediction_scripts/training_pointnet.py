@@ -16,7 +16,7 @@ model_dir = os.path.join(current_dir, 'model_saves', 'pointnet')
 from modules.LoadingTransforming import CloudLoader
 from modules.PointNet import PointNet, run_training
 from modules.utils import get_device
-from modules.CustomLoss import WeightedMSELoss
+from modules.CustomLoss import WeightedMSELoss, FocalMSELoss
 
 
 
@@ -43,7 +43,7 @@ scheduler_patience = 5
 
 batch_size = 100
 
-model_name = f'pointnet_10k_lr3_MAE_cosWR15_mult1_min6_aug'
+model_name = f'pointnet_10k_lr3_FMSE_cos30_6_T2100_FC1_aug'
 
 plot_results = True
 plot_dir = os.path.join(current_dir, 'plots', 'LossCurves', model_name+'png')
@@ -51,7 +51,8 @@ plot_dir = os.path.join(current_dir, 'plots', 'LossCurves', model_name+'png')
 # criterion = nn.MSELoss()
 # criterion = RelativeSquaredError() # https://lightning.ai/docs/torchmetrics/stable/regression/rse.html
 # criterion = WeightedMSELoss( 0.2, 10 )
-criterion = nn.L1Loss()
+# criterion = nn.L1Loss()
+criterion = FocalMSELoss()
 
 
 
@@ -73,7 +74,7 @@ def trainPointNet(train_dir, val_dir, epochs, batch_size, lr, gpu, model_name, e
     # Setup device and model
     device = get_device(cuda_preference=gpu)
     torch.cuda.empty_cache()
-    model = PointNet().to(device)
+    model = PointNet(T2=100).to(device)
 
     # Setup the model savepath
     model_savepath = os.path.join(model_dir, model_name+'.pt')
@@ -86,8 +87,8 @@ def trainPointNet(train_dir, val_dir, epochs, batch_size, lr, gpu, model_name, e
     sched = None
     if scheduler:
         # sched = optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer, factor=scheduler_decay, patience=scheduler_patience) # Standard scheduler
-        # sched = optim.lr_scheduler.CosineAnnealingLR(optimizer=optimizer, T_max=15, eta_min=1e-6) # Cycle down and stay low
-        sched = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer=optimizer, T_0=15, T_mult=1, eta_min=1e-6)
+        sched = optim.lr_scheduler.CosineAnnealingLR(optimizer=optimizer, T_max=30, eta_min=1e-6) # Cycle down and stay low
+        # sched = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer=optimizer, T_0=30, T_mult=1, eta_min=1e-6)
 
 
     # Run the training

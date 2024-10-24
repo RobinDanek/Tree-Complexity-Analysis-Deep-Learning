@@ -22,3 +22,24 @@ class WeightedMSELoss(nn.Module):
         weighted_sum = weights * squared_errs
 
         return torch.mean(weighted_sum)
+    
+
+class FocalMSELoss(nn.Module):
+    # Basically MSE with a focal loss type added weight for emphasizing bad samples
+    def __init__(self):
+        super(FocalMSELoss, self).__init__()
+
+    def forward(self, y_pred, y_true):
+        # Get absolute differences 
+        differences = torch.abs( y_pred - y_true )
+
+        # Calculate weighting
+        weight_factor = (1 - torch.exp(-differences))**2
+
+        # Calculate MSE
+        mse = differences**2
+
+        # Calculate focal mse for all samples
+        focal_mse_loss = weight_factor * mse
+
+        return focal_mse_loss.mean()

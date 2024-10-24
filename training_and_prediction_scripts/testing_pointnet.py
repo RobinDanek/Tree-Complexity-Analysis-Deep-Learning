@@ -6,14 +6,14 @@ import sys
 current_dir = os.getcwd()
 sys.path.append(current_dir)
 
-from modules.utils import general_eval
+from modules.utils import general_eval, plott_eval, tree_type_eval
 from modules.PointNet import PointNet
 from modules.LoadingTransforming import CloudSplitter, CloudLoader
 from modules.utils import get_device, TEST_SIZE, VAL_SIZE
 
 
 
-model_name = 'pointnet_10k_lr3_cosWR15_mult1_min6_newsplit_augmented'
+model_name = 'pointnet_10k_lr3_FMSE_cosWR15_mult1_min6_T2100_aug'
 
 
 print("\nBegin the dataloading...")
@@ -31,12 +31,20 @@ print("Loading the model...")
 device = get_device()
 
 # Load the model
-model = PointNet()
+model = PointNet(T2=100)
 state_dict = torch.load( checkpoint_path )
 model.load_state_dict( state_dict )
 model.to(device)
 print("Finished loading the model\n")
 
-plot_savepath = os.path.join( current_dir, 'plots', 'PredictionAnalytics', f'general_{model_name}.png' )
+plot_savepath_general = os.path.join( current_dir, 'plots', 'PredictionAnalytics', f'general_{model_name}.png' )
 
-test_loss = general_eval(test_list=test_list,  model=model, num_plot=50, device=device, prediction_path=os.path.join(current_dir, 'data', 'predictions10k'))
+test_loss = general_eval(test_list=test_list,  model=model, num_plot=50, device=device, plot_savepath=plot_savepath_general)
+
+plot_savepath_plott = os.path.join( current_dir, 'plots', 'PredictionAnalytics', f'plott_{model_name}.png' )
+
+differences_per_plot = plott_eval(test_list=test_list,  model=model, num_plot=40, device=device, plot_savepath=plot_savepath_plott)
+
+plot_savepath_tree_type = os.path.join( current_dir, 'plots', 'PredictionAnalytics', f'treeType_{model_name}.png' )
+
+differences_per_tree_type = tree_type_eval(test_list=test_list,  model=model, num_plot=30, device=device, plot_savepath=plot_savepath_tree_type)
