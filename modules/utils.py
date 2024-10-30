@@ -130,8 +130,9 @@ def general_eval(test_list, model, num_plot, device, plot_savepath=None, predict
     ax.set_xticks( range(num_plot) )
     ax.set_xticklabels( tree_names, rotation=45,  ha='right' )
     # Set the rest
-    ax.set_ylabel( "Fractal dimension" )
-    ax.set_title("Predicted and actual fractal dimensions")
+    ax.set_ylabel( "Box-dimension", fontsize=18 )
+    ax.set_xlabel("Tree ID", fontsize=18)
+    ax.set_title("Comparison of predicted and actual box-dimensions", fontsize=20)
     ax.set_ylim(1.4,2.2)
     ax.legend()
     plt.tight_layout()
@@ -212,6 +213,8 @@ def plott_eval(test_list, model, num_plot, device, plot_savepath=None, predictio
     fig, axes = plt.subplots(2, 2, figsize=(15, 10), sharey=True)
     axes = axes.flatten()  # Flatten the array of axes for easy iteration
 
+    plot_dict = {3: "Winnefeld", 4: "Nienover", 6: "Unterlüss", 8: "Göhrde 1"}
+
     # Now create plots for each specified plot number
     for idx, plot_number in enumerate(plot_numbers):
         ax = axes[idx]  # Select the subplot axis
@@ -244,11 +247,15 @@ def plott_eval(test_list, model, num_plot, device, plot_savepath=None, predictio
 
         # Set the xticks to the tree labels
         ax.set_xticks(range(num_plot))
-        ax.set_xticklabels(tree_names, rotation=45, ha='right')
-        ax.set_ylabel("Fractal dimension")
-        ax.set_title(f"Plot {plot_number}")
-        ax.set_ylim(1.4,2.2)
-        ax.legend()
+        ax.set_xticklabels(tree_names, rotation=45, ha='right', fontsize=10)  # Increase xtick label font size
+        ax.set_ylabel("Box-dimension", fontsize=18)  # Increase ylabel font size
+        ax.set_title(f"Plot {plot_dict[plot_number]}", fontsize=18)  # Increase subplot title font size
+        ax.set_ylim(1.4, 2.2)
+        ax.legend(fontsize=12)  # Increase legend font size
+
+    # Add a main title for the entire figure
+    fig.suptitle("Comparison of predicted and actual box-dimensions", fontsize=20)  # Increase main title font size
+
 
     # Adjust layout to prevent overlap
     plt.tight_layout()
@@ -371,7 +378,7 @@ def tree_type_eval(test_list, model, num_plot, device, plot_savepath=None, predi
         # Set the xticks to the tree labels
         ax.set_xticks(range(num_plot))
         ax.set_xticklabels(tree_names, rotation=45, ha='right')
-        ax.set_ylabel("Fractal dimension")
+        ax.set_ylabel("Box-dimension")
         ax.set_title(f"Tree Type {tree_type}")
         ax.set_ylim(1.4, 2.2)
         ax.legend()

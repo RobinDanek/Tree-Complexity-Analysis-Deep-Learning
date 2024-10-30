@@ -10,7 +10,7 @@ sys.path.append(current_dir)
 from modules.LoadingTransforming import CloudSplitter
 from modules.utils import TEST_SIZE, VAL_SIZE
 
-cloud_dir = os.path.join(current_dir, 'data', 'random_padding10k')
+cloud_dir = os.path.join(current_dir, 'data', 'random_padding100k')
 
 print(f"Splitting data found in {cloud_dir}")
 

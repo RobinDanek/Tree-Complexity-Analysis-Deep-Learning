@@ -31,11 +31,11 @@ train_dir = os.path.join(current_dir, 'data', 'random_padding10k', 'trainset_aug
 val_dir = os.path.join(current_dir, 'data', 'random_padding10k', 'valset')
 
 epochs = 300
-lr = 10**-3
+lr = 10**-5
 GPU = True
 
 early_stopper = True
-early_stopper_patience = 25
+early_stopper_patience = 15
 
 scheduler = True
 scheduler_decay = 0.5
@@ -43,16 +43,18 @@ scheduler_patience = 5
 
 batch_size = 100
 
-model_name = f'pointnet_10k_lr3_FMSE_cos30_6_T2100_FC1_aug'
+#model_name = f'pointnet_100k_lr3_FMSE_cos30_6_T2100_FC1_aug'
+#model_name = "pointnet_100k_lr5_decay05"
+model_name = "test"
 
 plot_results = True
 plot_dir = os.path.join(current_dir, 'plots', 'LossCurves', model_name+'png')
 
-# criterion = nn.MSELoss()
+criterion = nn.MSELoss()
 # criterion = RelativeSquaredError() # https://lightning.ai/docs/torchmetrics/stable/regression/rse.html
 # criterion = WeightedMSELoss( 0.2, 10 )
 # criterion = nn.L1Loss()
-criterion = FocalMSELoss()
+# criterion = FocalMSELoss()
 
 
 
@@ -86,8 +88,8 @@ def trainPointNet(train_dir, val_dir, epochs, batch_size, lr, gpu, model_name, e
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=10**-3)
     sched = None
     if scheduler:
-        # sched = optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer, factor=scheduler_decay, patience=scheduler_patience) # Standard scheduler
-        sched = optim.lr_scheduler.CosineAnnealingLR(optimizer=optimizer, T_max=30, eta_min=1e-6) # Cycle down and stay low
+        sched = optim.lr_scheduler.ReduceLROnPlateau(optimizer=optimizer, factor=scheduler_decay, patience=scheduler_patience) # Standard scheduler
+        # sched = optim.lr_scheduler.CosineAnnealingLR(optimizer=optimizer, T_max=30, eta_min=1e-6) # Cycle down and stay low
         # sched = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer=optimizer, T_0=30, T_mult=1, eta_min=1e-6)
 
 

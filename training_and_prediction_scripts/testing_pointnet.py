@@ -13,7 +13,7 @@ from modules.utils import get_device, TEST_SIZE, VAL_SIZE
 
 
 
-model_name = 'pointnet_10k_lr3_FMSE_cosWR15_mult1_min6_T2100_aug'
+model_name = 'pointnet_10k_lr3_FMSE_cosWR15_mult1_min6_aug'
 
 
 print("\nBegin the dataloading...")
@@ -31,7 +31,7 @@ print("Loading the model...")
 device = get_device()
 
 # Load the model
-model = PointNet(T2=100)
+model = PointNet(T2=64)
 state_dict = torch.load( checkpoint_path )
 model.load_state_dict( state_dict )
 model.to(device)
