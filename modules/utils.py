@@ -41,6 +41,185 @@ def get_device(cuda_preference=True):
 
 ########### MODEL EVALUATION ###########
 
+def baseline_mae(train_list, test_list, device):
+    """
+    Computes the mean absolute error (MAE) of predicting the mean label
+    from the train set for both train and test samples.
+
+    Args:
+        train_list: List of paths to training tree data
+        test_list: List of paths to test tree data
+        device: The device on which computation is done
+    
+    Returns:
+        Tuple containing:
+        - MAE of using the train mean label as a predictor for the train set.
+        - MAE of using the train mean label as a predictor for the test set.
+    """
+    print(f"\nComputing baseline MAE using train set ({len(train_list)} samples) and evaluating on test set ({len(test_list)} samples)...")
+    
+    train_dataloader = DataLoader(CloudDataset(train_list), batch_size=32, shuffle=False)
+    test_dataloader = DataLoader(CloudDataset(test_list), batch_size=32, shuffle=False)
+    
+    train_labels = []
+    test_labels = []
+    
+    # Collect all train labels
+    with torch.no_grad():
+        for batch in tqdm(train_dataloader, desc="Loading train labels", total=len(train_dataloader)):
+            _, batch_labels = batch
+            train_labels.extend(batch_labels.cpu().tolist())
+    
+    # Compute mean of all train labels
+    mean_train_label = sum(train_labels) / len(train_labels)
+    
+    # Compute MAE for train set
+    train_mae = sum(abs(label - mean_train_label) for label in train_labels) / len(train_labels)
+    
+    # Collect all test labels
+    with torch.no_grad():
+        for batch in tqdm(test_dataloader, desc="Loading test labels", total=len(test_dataloader)):
+            _, batch_labels = batch
+            test_labels.extend(batch_labels.cpu().tolist())
+    
+    # Compute MAE for test set using train mean label
+    test_mae = sum(abs(label - mean_train_label) for label in test_labels) / len(test_labels)
+    
+    print(f"Train Mean Label: {mean_train_label:.4f}, Train Baseline MAE: {train_mae:.4f}, Test Baseline MAE: {test_mae:.4f}")
+    return train_mae, test_mae
+
+def mae_eval(data_list, model, device):
+    """
+    Evaluates a model on the given dataset and returns the Mean Absolute Error (MAE).
+
+    Args:
+        data_list: List of paths to tree data
+        model: A model to perform the evaluation
+        device: The device on which computation is done
+    
+    Returns:
+        Mean Absolute Error (MAE) of the model on the given dataset.
+    """
+    print(f"\nEvaluating model on dataset ({len(data_list)} samples)...")
+    
+    dataloader = DataLoader(CloudDataset(data_list), batch_size=32, shuffle=False)
+    mean_difference = 0.0
+    differences = []
+    
+    # Set model to evaluation mode
+    model.eval()
+    
+    # Perform predictions and compute MAE
+    with torch.no_grad():
+        for i, batch in tqdm(enumerate(dataloader), desc="Making predictions", total=len(dataloader)):
+            # Load tree and label
+            trees, labels = batch
+            trees, labels = trees.to(device), labels.to(device)
+
+            # Iterate over samples in batch
+            for j in range( trees.size(0) ):
+                # Convert to torch tensors for inferece, pass to device and add batch dimension
+                tree = trees[j].unsqueeze(0)
+                label = labels[j].unsqueeze(0)
+
+                label_pred = model(tree)
+                # calculate absolute difference
+                difference = torch.abs( label_pred - label ).item()
+                # Append to variable
+                mean_difference += difference
+
+                # Store values for plotting
+                # New way: appending as a tuple, which matches the dtype structure
+                differences.append(difference)
+
+
+    mean_difference = mean_difference / len(differences)
+    print(f"Model MAE: {mean_difference:.3f}")
+    return mean_difference
+
+def rotation_robustness_eval(model, tree_paths, device):
+    """
+    Evaluates the robustness of the model to 90° rotations for multiple trees. For each tree,
+    it computes the absolute prediction error between the original cloud and its rotated versions.
+
+    Args:
+        model: The initialized model to evaluate
+        tree_paths: A list of paths to the tree .txt files
+        device: The device on which computation is done
+    
+    Returns:
+        A float representing the mean absolute deviation across all trees for the three rotations
+    """
+    total_error = 0.0
+    num_trees = len(tree_paths)
+
+    all_rotation_errors = []
+
+    # Iterate over the list of tree paths
+    for tree_path in tree_paths:
+        # Get the predictions for this tree
+        predictions = rotation_robustness_single_tree(model, tree_path, device)
+        
+        # Calculate absolute errors for the rotations (excluding the original)
+        original_pred = predictions[0]
+        rotation_errors = [abs(original_pred - pred) for pred in predictions[1:]]
+        
+        all_rotation_errors.append( rotation_errors )
+        
+    mean_deviations = np.mean( all_rotation_errors, axis=0 )
+
+    return mean_deviations
+
+def rotation_robustness_single_tree(model, tree_path, device):
+    """
+    Evaluates the robustness of a model to 90° rotations by predicting labels for a tree
+    in its original orientation and three rotated versions.
+
+    Args:
+        model: The initialized model to evaluate
+        tree_path: Path to the tree .txt file
+        device: The device on which computation is done
+    
+    Returns:
+        A list of predictions for the four orientations (original + 3 rotations)
+    """
+    
+
+    # Load tree from file
+    tree = np.load(tree_path)  # Assuming the tree is stored as a NumPy-compatible text file
+    tree_points = tree[0][0]  # Adjust based on how the data is structured
+    tree_tensor = torch.tensor(tree_points, dtype=torch.float32).to(device).transpose(0, 1).unsqueeze(0)
+    
+    # Prepare model
+    model.eval()
+    
+    # Function to rotate a point cloud by 90 degrees along the Z-axis
+    def rotate_cloud(cloud, angle):
+        rotation_matrix = np.array([
+            [np.cos(np.radians(angle)), -np.sin(np.radians(angle)), 0],
+            [np.sin(np.radians(angle)), np.cos(np.radians(angle)), 0],
+            [0, 0, 1]
+        ])
+        rotated_cloud = np.dot(cloud, rotation_matrix.T)  # Apply the rotation
+        return rotated_cloud
+    
+    predictions = []
+
+    # Evaluate for the original orientation
+    with torch.no_grad():
+        predictions.append(model(tree_tensor).cpu().item())
+    
+    # Rotate the cloud by 90, 180, and 270 degrees and make predictions
+    for angle in [90, 180, 270]:
+        rotated_tree_points = rotate_cloud(tree_points, angle)
+        rotated_tree_tensor = torch.tensor(rotated_tree_points, dtype=torch.float32).to(device).transpose(0, 1).unsqueeze(0)
+        
+        with torch.no_grad():
+            predictions.append(model(rotated_tree_tensor).cpu().item())
+
+    return predictions
+
+
 def general_eval(test_list, model, num_plot, device, plot_savepath=None, prediction_path=None):
     """
     This  function reads  in a dataloader of test trees and usel model to predict 
